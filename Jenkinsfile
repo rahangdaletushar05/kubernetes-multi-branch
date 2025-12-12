@@ -1,8 +1,8 @@
 pipeline {
-  agent { label 'my-agent' }
+  agent { label 'docker-agent' }
 
   environment {
-    IMAGE = "REPLACE_DOCKER_REPO:qa-${env.BUILD_NUMBER}"
+    IMAGE = "tusharrahangdale/kubernetes-multi-branch:qa-${env.BUILD_NUMBER}"
     APP_BRANCH = "qa"
   }
 
@@ -10,15 +10,23 @@ pipeline {
     stage('Build Docker Image') {
       steps { sh "docker build -t $IMAGE ." }
     }
+
     stage('Push Image') {
       steps {
-        sh """
-        echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
-        docker push $IMAGE
-        """
+        withCredentials([
+          usernamePassword(
+            credentialsId: 'dockerhub-creds',
+            usernameVariable: 'DOCKER_USERNAME',
+            passwordVariable: 'DOCKER_PASSWORD'
+          )
+        ]) {
+          sh "echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin"
+          sh "docker push $IMAGE"
+        }
       }
     }
-    stage('Deploy to Kubernetes QA') {
+
+    stage('Deploy to Kubernetes (QA)') {
       steps {
         sh """
         kubectl apply -f k8s/deployment-qa.yaml
