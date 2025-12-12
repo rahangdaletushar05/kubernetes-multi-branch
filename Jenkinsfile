@@ -1,8 +1,8 @@
 pipeline {
-  agent { label 'my-agent' }
+  agent { label 'docker-agent' }
 
   environment {
-    IMAGE = "REPLACE_DOCKER_REPO:dev-${env.BUILD_NUMBER}"
+    IMAGE = "tusharrahangdale/kubernetes-multi-branch:dev-${env.BUILD_NUMBER}"
     APP_BRANCH = "dev"
   }
 
@@ -10,15 +10,23 @@ pipeline {
     stage('Build Docker Image') {
       steps { sh "docker build -t $IMAGE ." }
     }
+
     stage('Push Image') {
       steps {
-        sh """
-        echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
-        docker push $IMAGE
-        """
+        withCredentials([
+          usernamePassword(
+            credentialsId: 'dockerhub-creds',
+            usernameVariable: 'DOCKER_USERNAME',
+            passwordVariable: 'DOCKER_PASSWORD'
+          )
+        ]) {
+          sh "echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin"
+          sh "docker push $IMAGE"
+        }
       }
     }
-    stage('Deploy to Kubernetes Dev') {
+
+    stage('Deploy to Kubernetes (DEV)') {
       steps {
         sh """
         kubectl apply -f k8s/deployment-dev.yaml
